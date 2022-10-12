@@ -18,7 +18,7 @@ export const getUsers = async(_req:Request, res:Response, _next:NextFunction) =>
 }
 
 export const updateMessages = async(req:Request, res:Response, _next:NextFunction) => {
-  const {sender, receiver, msgs} = req.body;
+  const {sender, receiver, msgs, name} = req.body;
   console.log("Actualizando mensaje en BD",msgs);
   console.log("Emisor", sender);
   console.log("Receptor", receiver);
@@ -37,8 +37,13 @@ export const updateMessages = async(req:Request, res:Response, _next:NextFunctio
     //Si el usuario tiene una conversación existente con el receptor se actualiza el array de mensajes
     //Sino se rellena el array de mensajes
     if(exists == undefined){
-      user?.chats?.push({receiver:receiver, messages: [msgs]})
-      const updateMessagesUser = await userModel.findByIdAndUpdate(sender, {chats:{receiver:receiver,messages:msgs, current:true}},{new:true}).lean().exec();
+      const chats = user?.chats?.push({receiver:receiver, messages: [msgs], current:true, name: name})
+      user?.chats.map(chat => {
+        if(chat.receiver != receiver) chat.current = false;
+      })
+      console.log("CHATS ACTUALIZADOS", user?.chats);
+      
+      const updateMessagesUser = await userModel.findByIdAndUpdate(sender, {chats:user?.chats},{new:true}).lean().exec();
     }else{
       //Actualizamos los mensajes de la conversación actual
       exists.messages.push(msgs);  
@@ -46,25 +51,26 @@ export const updateMessages = async(req:Request, res:Response, _next:NextFunctio
       console.log("Emisor", user?.chats);
 
       //Actualizamos la conversación en la base de datos
-      const updateMessagesUser = await userModel.findByIdAndUpdate(sender, {chats:{receiver:receiver,messages:messagesUpdated, current:true}},{new:true}).lean().exec();      
+      const updateMessagesUser = await userModel.findByIdAndUpdate(sender, {chats:user?.chats},{new:true}).lean().exec();      
     }
 
     //Hacemos lo mismo que antes pero con el usuario receptor
     let userReceiver = await userModel.findById(receiver).lean().exec();
     const existsMessagesOnReceiver = userReceiver?.chats.find(chat => chat.receiver == sender);
-    console.log("Usuario receptor", user);    
+    console.log("Usuario receptor", userReceiver);    
     console.log("Existe conversacion", existsMessagesOnReceiver);
 
     if(existsMessagesOnReceiver == undefined){
-      userReceiver?.chats?.push({receiver:receiver, messages: [msgs]})
-      const updateMessagesUser = await userModel.findByIdAndUpdate(receiver, {chats:{receiver:sender,messages:msgs}},{new:true}).lean().exec();
+      const findUser = await userModel.findById(receiver);
+      userReceiver?.chats?.push({receiver:receiver, messages: [msgs], current:false, name:findUser?.name})
+      const updateMessagesUser = await userModel.findByIdAndUpdate(receiver, {chats:userReceiver?.chats},{new:true}).lean().exec();
       console.log(updateMessagesUser);
     }else{
       existsMessagesOnReceiver.messages.push(msgs);
       const messagesUpdated = existsMessagesOnReceiver.messages;
       console.log("Receptor", userReceiver?.chats);
 
-      const updateMessagesUser = await userModel.findByIdAndUpdate(receiver, {chats:{receiver:sender,messages:messagesUpdated}},{new:true}).lean().exec();
+      const updateMessagesUser = await userModel.findByIdAndUpdate(receiver, {chats:userReceiver?.chats},{new:true}).lean().exec();
       console.log(updateMessagesUser);
       
     }
@@ -95,7 +101,7 @@ export const getCurrentRoom = async (req:Request, res: Response) => {
   const userId = req.body.user;
 
   let currentRoom = await userModel.findById(userId)
-  console.log(currentRoom);
+  console.log("CurrentROM",currentRoom);
   
   const room = currentRoom?.chats.find(cRoom => cRoom.current == true);
 

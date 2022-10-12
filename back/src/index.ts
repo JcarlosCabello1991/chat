@@ -31,8 +31,6 @@ io.on('connection', (socket) => {
     console.log("hola", data.to);
     console.log("msg", data.msg);
     
-    // io.to(data.to).emit(data.msg);
-    // io.to(data.sender).emit(data.msg);
     const o = io.emit(data.to, data.msg)
     
     io.emit(data.sender, data.msg)
@@ -43,9 +41,11 @@ io.on('connection', (socket) => {
         headers:{
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({sender: data.sender, receiver: data.to, msgs:data.msg})
+        body: JSON.stringify({sender: data.sender, receiver: data.to, msgs:data.msg, name:data.msg.split(':')[0]})
       })
     const dataResponse = await response.json()
+    console.log(dataResponse);
+    
     }
     updateMessages();
   })
