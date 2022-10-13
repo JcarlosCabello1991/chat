@@ -4,7 +4,6 @@ import Image from 'next/image'
 import styles from '../styles/Home.module.css'
 import { ReactEventHandler, useEffect, useRef, useState } from 'react'
 import {io} from 'socket.io-client'
-import data from './contacts.json'
 
 const socket = io("http://localhost:4000");
 const Home: NextPage = () => {
@@ -17,6 +16,9 @@ const Home: NextPage = () => {
   const [id2, setid2] = useState<string>();
   const [inputUser,setInputUser] = useState("");
   const [userName, setUserName] = useState<string>("")
+  const [dataMessages, setDataMessages] = useState<{msg:string, from:string}>({msg:"", from:""})
+  const [typing, setTyping] = useState<string>("");
+  const [dataTyping, setDataTyping] = useState<string>("");
 
   //Obtenemos los contactos
   useEffect(() => {
@@ -26,16 +28,18 @@ const Home: NextPage = () => {
       setUsers(data1.msg)  
       if(window.location.host == "localhost:3000"){
         console.log(data1.msg[0].name);//Nombre del usuario(tu nombre)
-      setUserName(data1.msg[0].name)
-      setid1(data1.msg[0]._id)
-      setid2(data1.msg[2]._id)//Prueba
+      setUserName(data1.msg[0].name)//Here we will set the name of user account
+      setid1(data1.msg[0]._id)//Here we set the id of user account
+      setid2(data1.msg[2]._id)//This line is in line 62, here this line should be deleted
       setCurrentRoom(data1.msg[2].name)
       }
+      //this if bellow will be deleted is only for test
       if(window.location.host == "localhost:3001"){
+        setUserName(data1.msg[2].name)
         setUsers(data1.msg)  
-        setid1(data1.msg[0]._id)
-        setid2(data1.msg[2]._id)//Prueba
-        setCurrentRoom("Alicia")
+        setid1(data1.msg[2]._id)
+        setid2(data1.msg[0]._id)//Prueba
+        setCurrentRoom(data1.msg[0].name)
       }
     }
     getUsers();
@@ -43,6 +47,7 @@ const Home: NextPage = () => {
 
   //Obtenemos la ultima conversación abierta
   useEffect(() => {
+    socket.emit("connected", id1)
     const currentRoom = async () => {
     const responseCurrentRoom = await fetch("http://localhost:5001/currentRoom",{
         method:'POST',
@@ -55,21 +60,19 @@ const Home: NextPage = () => {
       
       console.log(room);
       console.log(room.name);
-      // setid2(room.currentRoom);
       setCurrentRoom(room.name);
+      setid2(room.currentRoom);
       getMessagesOfCurrentRoom(room.currentRoom)
       if(window.location.host == "localhost:3001"){
         setCurrentRoom("Alicia")
-      }else{
-        setCurrentRoom("Roger")
       }
     }
     currentRoom();
   },[id1])
 
   //Cargamos los mensajes de la conversación actual cuando se hayan cargado el id2 y currentRoom del useEffect anterior
-  const getMessagesOfCurrentRoom = async (currentRoom:any) => {
-    console.log("currentRoom",currentRoom);
+  const getMessagesOfCurrentRoom = async (idCurrentRoom:any) => {
+    console.log("currentRoom",idCurrentRoom);
     console.log("id1",id1);
     console.log("id2",id2);
     
@@ -78,48 +81,37 @@ const Home: NextPage = () => {
       headers:{
         'Content-Type':'application/json'
       },
-      body: JSON.stringify({sender:window.location.host == "localhost:3000" ? id1 : id2, receiver:window.location.host == "localhost:3000" ?currentRoom:id1})
+      body: JSON.stringify({sender:window.location.host == "localhost:3000" ? id1 : id2, receiver:window.location.host == "localhost:3000" ?idCurrentRoom:id1})
     })
     const dataMessages = await responseOfCurrentRoom.json();
-    console.log(dataMessages.msgs);
     setMessages(dataMessages.msgs)
   } 
  
 
   //Escuchamos en los clientes para recibir el mensaje enviado y actualizar los mensajes en base de datos
-  useEffect(() => {
-    // socket.on(`${(socket.id)?.toString()}`, (data:string) => {
-    // setMessages((prevMessages)=>{
-    //   console.log([...prevMessages, data]);
-      
-    //   return[...prevMessages,data]
-    // })
-    // console.log(messages);      
-    
-    // })
-
-    if(window.location.host == "localhost:3001"){
-      
-    socket.on(`${id2}`, (data:string) => {
-      setMessages((prevMessages)=>{
-        console.log([...prevMessages, data]);
-        
-        return[...prevMessages,data]
-      })      
+  useEffect(() => {    
+    socket.on(`${id1}`, (data:any) => {
+      // console.log("currentRoom", currentRoom);
+      // console.log("id2", id2);
+      // console.log("Mensaje de:", data.from);
+      // console.log("Booelan", id2 == data.from || id1 == data.from);  
+      setDataMessages(data);
     })
-    }else{
-      socket.on(`${id1}`, (data:string) => {
-        setMessages((prevMessages)=>{
-          console.log(data);
-          
-          // console.log([...prevMessages, data]);
-          // updateMessageChat([...prevMessages, data]);
-          return[...prevMessages,data]
-        })
-        console.log(messages);
-      })
-    }
+
+    socket.on('typing', (data:any) => {      
+      setTyping(data);
+    })
   },[id2])
+
+  useEffect(() => {
+    if(dataMessages.from == id2 || dataMessages.from == id1) setMessages((prevMessages) => {return [...prevMessages, dataMessages.msg]})
+  },[dataMessages])
+
+  useEffect(() => {
+    console.log(typing);
+    
+    setDataTyping(typing);
+  }, [typing])
 
   const messagesEndRef = useRef<null | HTMLDivElement>(null);
 
@@ -128,16 +120,21 @@ const Home: NextPage = () => {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth", block:'end' });
     
       const field = document.getElementById("fieldset");
-      field.scrollTop = field.scrollHeight;
+      field && (field.scrollTop = field.scrollHeight);
   };
 
   useEffect(scrollToBottom, [messages]);
 
   const handleInput = (value:string) => {
     if(window.location.host == "localhost:3000"){
+      console.log("Escribiendo");
+      
       setInput(value);
+      socket.emit(`typing`, {msg:`${userName} is typing`, to:`${id2}`, sender:`${id1}`, socket:socket.id})
+      
     }else{
       setInput(value);
+      //socket.emit(`typing`, {msg:`${userName} is typing`, to:`${id2}`, sender:`${id1}`, socket:socket.id})
     }
   }
 
@@ -145,52 +142,50 @@ const Home: NextPage = () => {
     console.log(window.location.host);
   
     if(window.location.host == "localhost:3000"){
-      const id = id1;
-      console.log("sender",id1);
-      console.log("receiver", id2);      
-      console.log("name", currentRoom);      
-      
-      socket.emit(`send-Message`, {msg:`${userName}:${input}`, to:`${id2}`, sender:`${id1}`})
-      console.log(data);
+      // const id = id1;
+      // console.log("sender",id1);
+      // console.log("receiver", id2);      
+      // console.log("name", currentRoom); 
+
+      socket.emit(`send-Message`, {msg:`${userName}:${input}`, to:`${id2}`, sender:`${id1}`, socket:socket.id})
+      socket.emit(`typing`, {msg:``, to:`${id2}`, sender:`${id1}`, socket:socket.id})
+      // console.log(data);
       
     }else{
-      const id = id2;
-      console.log(id2);
+      // const id = id2;
+      // console.log(id2);
       
-      socket.emit(`send-Message`, {msg:`${currentRoom}:${input}`, to:`${id1}`, sender:`${id2}`})
+      socket.emit(`send-Message`, {msg:`${userName}:${input}`, to:`${id2}`, sender:`${id1}`, socket:socket.id})
     }
-    console.log(socket.id);
+    // console.log(socket.id);
     setInput("");
   }
 
   //Cargar los mensajes del chat actual
   const handleUser = async(value:any, userId:string) => {
-    console.log("Value", value);
-    
+    // console.log("Value", value);
+    socket.emit(`typing`, {msg:``, to:`${id2}`, sender:`${id1}`, socket:socket.id})//set to '' message typing
     setInputUser(value);
     // if(value == "Julio"){
-      // setid2(users[0]._id)
-      setCurrentRoom(value)
-      setMessages("")
-      //recogemos los mensajes cada vez que cambiamos de chat
-      const response = await fetch("http://localhost:5001/getMessages",{
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json'
-        },
-        body:JSON.stringify({sender:id1,receiver:userId})
-      })
-      const msgs = await response.json();
-      setMessages(msgs.msgs)
-      console.log(msgs);
+    setid2(userId)
+    setCurrentRoom(value)
+      // console.log(currentRoom);
+      // console.log(id2);
       
-    // }
-    // else{
-    //   setMessages([""]);
-    // }
+      
+    setMessages([])
+    //recogemos los mensajes cada vez que cambiamos de chat
+    const response = await fetch("http://localhost:5001/getMessages",{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json'
+      },
+      body:JSON.stringify({sender:id1,receiver:userId})
+    })
+    const msgs = await response.json();
+    setMessages(msgs.msgs)
+    // console.log(msgs);
   }
-  
-  console.log(messages);
   
   return (
     <div className={styles.container}>
@@ -205,9 +200,10 @@ const Home: NextPage = () => {
         <p>receiver: {id2}</p>
         <input type="text" value={inputUser} name="userName" onChange={(e)=>handleUser(e.target.value)}/>
         <button type='submit'>Send</button>
+        <p>Soy: {userName}</p>
         <div style={{display:'flex', gap:'3rem'}}>
         <div style={{width:'40rem', minHeight:'25rem', borderRadius:'15px', padding:'0', border:'1px solid white'}}>
-          <h2 style={{border:"1px solid white", borderRadius:"15px 15px 0 0", margin:'0px', paddingLeft:'1rem'}}>{currentRoom != "" ? currentRoom : "Abre un chat"}</h2>
+          <h2 style={{border:"1px solid white", borderRadius:"15px 15px 0 0", margin:'0px', paddingLeft:'1rem'}}>{currentRoom != "" ? currentRoom : "Abre un chat"} {typing}</h2>
         <fieldset id="fieldset" style={{width:'39.9rem',minHeight:'22.5rem',maxHeight:'22.5rem', borderRadius:'15px', padding:'0 0.5rem 0 0.5rem', border:'0', overflowY:'scroll', display:'flex', alignContent: "flex-start", flexDirection:"column", paddingTop:'0.5rem'}}>
         {
           messages?.length >= 1 && messages.map((msg, index) => {            
@@ -215,14 +211,14 @@ const Home: NextPage = () => {
               <>
               { currentRoom == msg.split(':')[0] ?
               <div style={{display:'flex', justifyContent:'flex-start'}}>
-                <span key={index} style={{maxWidth:'fit-content',textAlign:'left', border:'1px solid white', borderRadius:'5px', paddingTop:'2px', paddingBottom:'2px', paddingLeft:'5px', paddingRight:'5px', marginBottom:'0.5rem'}}>
+                <span key={index} style={{maxWidth:'fit-content',textAlign:'left', border:'1px solid white', borderRadius:'5px', paddingTop:'2px', paddingBottom:'2px', paddingLeft:'5px', paddingRight:'5px', marginBottom:'0.5rem', backgroundColor:'green'}}>
                   {/* comprobar si currentRoom == msg.split(':')[0] el nombre del chat en cuyo caso se pone a la izquierda y se muestra sino a la dcha y mostrando siempre msg.split(':')[1] */}
                   {msg.split(':')[1]}
                 </span>
               </div>
               :
               <div style={{display:'flex', justifyContent:'flex-end'}}>
-                <span key={index}style={{maxWidth:'fit-content',textAlign:'right', border:'1px solid white', borderRadius:'5px', paddingTop:'2px', paddingBottom:'2px',paddingLeft:'0.5rem', paddingRight:'5px', marginBottom:'0.5rem'}}>
+                <span key={index}style={{maxWidth:'fit-content',textAlign:'right', border:'1px solid white', borderRadius:'5px', paddingTop:'2px', paddingBottom:'2px',paddingLeft:'0.5rem', paddingRight:'5px', marginBottom:'0.5rem', backgroundColor:'green'}}>
                   {/* comprobar si currentRoom == msg.split(':')[0] el nombre del chat en cuyo caso se pone a la izquierda y se muestra sino a la dcha y mostrando siempre msg.split(':')[1] */}
                   {msg.split(':')[1]}
                 </span>

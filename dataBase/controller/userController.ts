@@ -47,7 +47,11 @@ export const updateMessages = async(req:Request, res:Response, _next:NextFunctio
     }else{
       //Actualizamos los mensajes de la conversación actual
       exists.messages.push(msgs);  
-      const messagesUpdated = exists.messages;    
+      const messagesUpdated = exists.messages;
+      exists.current = true;
+      user?.chats.map(chat => {
+        if(chat.receiver != receiver) chat.current = false;
+      })    
       console.log("Emisor", user?.chats);
 
       //Actualizamos la conversación en la base de datos
