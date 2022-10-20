@@ -19,6 +19,7 @@ const Home: NextPage = () => {
   const [dataMessages, setDataMessages] = useState<{msg:string, from:string}>({msg:"", from:""})
   const [typing, setTyping] = useState<string>("");
   const [dataTyping, setDataTyping] = useState<string>("");
+  const [pendingMessages, setPendingMessages] = useState<{id:string, numberMessages:number}[]>([]);
 
   //Obtenemos los contactos
   useEffect(() => {
@@ -32,6 +33,7 @@ const Home: NextPage = () => {
       setid1(data1.msg[0]._id)//Here we set the id of user account
       setid2(data1.msg[2]._id)//This line is in line 62, here this line should be deleted
       setCurrentRoom(data1.msg[2].name)
+      
       }
       //this if bellow will be deleted is only for test
       if(window.location.host == "localhost:3001"){
@@ -61,7 +63,7 @@ const Home: NextPage = () => {
       console.log(room);
       console.log(room.name);
       setCurrentRoom(room.name);
-      setid2(room.currentRoom);
+      // setid2(room.currentRoom);
       getMessagesOfCurrentRoom(room.currentRoom)
       if(window.location.host == "localhost:3001"){
         setCurrentRoom("Alicia")
@@ -104,7 +106,27 @@ const Home: NextPage = () => {
   },[id2])
 
   useEffect(() => {
-    if(dataMessages.from == id2 || dataMessages.from == id1) setMessages((prevMessages) => {return [...prevMessages, dataMessages.msg]})
+    if(dataMessages.from == id2 || dataMessages.from == id1) {
+      setMessages((prevMessages) => {return [...prevMessages, dataMessages.msg]})
+    }else{
+      const exist = pendingMessages.find(chat => chat.id == dataMessages.from);
+      console.log(exist);
+      console.log(pendingMessages);
+      
+      if(exist != undefined) {
+        pendingMessages.map(msg => {
+          if(msg.id == dataMessages.from) msg.numberMessages += 1
+        })
+        
+        setPendingMessages(pendingMessages)
+      }else{
+        if(dataMessages.from != ''){
+        const idUser = dataMessages.from;        
+        setPendingMessages([{id:idUser, numberMessages:1}])
+        
+      }
+    }
+  }
   },[dataMessages])
 
   useEffect(() => {
@@ -150,28 +172,26 @@ const Home: NextPage = () => {
       socket.emit(`send-Message`, {msg:`${userName}:${input}`, to:`${id2}`, sender:`${id1}`, socket:socket.id})
       socket.emit(`typing`, {msg:``, to:`${id2}`, sender:`${id1}`, socket:socket.id})
       // console.log(data);
+      console.log(pendingMessages);
       
     }else{
       // const id = id2;
       // console.log(id2);
-      
+      console.log(pendingMessages);
       socket.emit(`send-Message`, {msg:`${userName}:${input}`, to:`${id2}`, sender:`${id1}`, socket:socket.id})
     }
+    console.log(pendingMessages);
     // console.log(socket.id);
     setInput("");
   }
 
   //Cargar los mensajes del chat actual
   const handleUser = async(value:any, userId:string) => {
-    // console.log("Value", value);
     socket.emit(`typing`, {msg:``, to:`${id2}`, sender:`${id1}`, socket:socket.id})//set to '' message typing
     setInputUser(value);
-    // if(value == "Julio"){
     setid2(userId)
     setCurrentRoom(value)
-      // console.log(currentRoom);
-      // console.log(id2);
-      
+    deletePendingMessage(userId)
       
     setMessages([])
     //recogemos los mensajes cada vez que cambiamos de chat
@@ -184,7 +204,11 @@ const Home: NextPage = () => {
     })
     const msgs = await response.json();
     setMessages(msgs.msgs)
-    // console.log(msgs);
+  }
+
+  const deletePendingMessage = (userId:string) => {
+    const messagesAllreadyPending = pendingMessages.filter(chat => chat.id != userId);
+    setPendingMessages(messagesAllreadyPending);
   }
   
   return (
@@ -239,11 +263,21 @@ const Home: NextPage = () => {
           {
             users.map(user => {
               if(user._id != id1){
+                let userMessages:{id:string, numberMessages:number} | undefined = pendingMessages.find(chat => chat.id == user._id)
               return(
                 <>
+                  
                 <p style={{paddingLeft:'1rem'}}key={user._id} onClick={()=>{setCurrentRoom(user.name); setid2(user._id);handleUser(user.name, user._id)}}>
-                  {user.name}
+                  {user.name} 
+                  {/* {userMessages != undefined && 
+                  // (userMessages?.numberMessages)
+                  <div style={{maxWidth:'0.5rem', maxHeight:'0.5rem', borderRadius:'50%', backgroundColor:'red'}}>{" "} </div>
+                  } */}
                 </p>
+                {userMessages != undefined && 
+                  // (userMessages?.numberMessages)
+                  <div style={{width:'0.5rem', height:'0.5rem', borderRadius:'50%', backgroundColor:'red'}}></div>
+                  }
                 <hr></hr>
                 </>
               )
