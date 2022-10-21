@@ -5,7 +5,9 @@ import styles from '../styles/Home.module.css'
 import { ReactEventHandler, useEffect, useRef, useState } from 'react'
 import {io} from 'socket.io-client'
 
-const socket = io("http://localhost:4000");
+var socketId;
+var usuarios = [];
+const socket = io(`http://localhost:4000`);//http://localhost:4000
 const Home: NextPage = () => {
 
   const [input, setInput] = useState<string>("");
@@ -29,19 +31,19 @@ const Home: NextPage = () => {
       setUsers(data1.msg)  
       if(window.location.host == "localhost:3000"){
         console.log(data1.msg[0].name);//Nombre del usuario(tu nombre)
-      setUserName(data1.msg[0].name)//Here we will set the name of user account
-      setid1(data1.msg[0]._id)//Here we set the id of user account
-      setid2(data1.msg[2]._id)//This line is in line 62, here this line should be deleted
-      setCurrentRoom(data1.msg[2].name)
+      setUserName("Juan Carlos")//Here we will set the name of user account
+      setid1("633ee940468b79f49c802296")//Here we set the id of user account
+      setid2("633ee8ec468b79f49c802292")//This line is in line 62, here this line should be deleted
+      setCurrentRoom("Alicia")
       
       }
       //this if bellow will be deleted is only for test
       if(window.location.host == "localhost:3001"){
-        setUserName(data1.msg[2].name)
+        setUserName("Alicia")
         setUsers(data1.msg)  
-        setid1(data1.msg[2]._id)
-        setid2(data1.msg[0]._id)//Prueba
-        setCurrentRoom(data1.msg[0].name)
+        setid1("633ee8ec468b79f49c802292")
+        setid2("633ee940468b79f49c802296")//Prueba
+        setCurrentRoom("Juan Carlos")
       }
     }
     getUsers();
@@ -49,6 +51,18 @@ const Home: NextPage = () => {
 
   //Obtenemos la ultima conversación abierta
   useEffect(() => {
+    if(window.location.host == 'localhost:3000'){
+      socket.emit('update_list', { id: `${id1}`, usuario: 'Juan Carlos', action: 'login' });
+    }else{
+      socket.emit('update_list', { id: `${id1}`, usuario: 'Alicia', action: 'login' });
+    }
+    socket.on('session_update', function(data, socket){
+      socketId = socket;
+      usuarios = data;
+      
+      // Lista de usuarios conectados
+      console.log(usuarios);
+    });
     socket.emit("connected", id1)
     const currentRoom = async () => {
     const responseCurrentRoom = await fetch("http://localhost:5001/currentRoom",{
@@ -66,7 +80,7 @@ const Home: NextPage = () => {
       // setid2(room.currentRoom);
       getMessagesOfCurrentRoom(room.currentRoom)
       if(window.location.host == "localhost:3001"){
-        setCurrentRoom("Alicia")
+        setCurrentRoom("Juan Carlos")
       }
     }
     currentRoom();
@@ -77,7 +91,7 @@ const Home: NextPage = () => {
     console.log("currentRoom",idCurrentRoom);
     console.log("id1",id1);
     console.log("id2",id2);
-    
+    if(currentRoom != undefined){
     const responseOfCurrentRoom = await fetch("http://localhost:5001/getMessages",{
       method:'POST',
       headers:{
@@ -87,6 +101,7 @@ const Home: NextPage = () => {
     })
     const dataMessages = await responseOfCurrentRoom.json();
     setMessages(dataMessages.msgs)
+  }
   } 
  
 
@@ -97,14 +112,16 @@ const Home: NextPage = () => {
       // console.log("id2", id2);
       // console.log("Mensaje de:", data.from);
       // console.log("Booelan", id2 == data.from || id1 == data.from);  
+      console.log(data)
       setDataMessages(data);
     })
 
-    socket.on('typing', (data:any) => {      
+    socket.on('typing', (data:any) => {     
+      console.log("ME ESCRIBEN"); 
       setTyping(data);
     })
   },[id2])
-
+  
   useEffect(() => {
     if(dataMessages.from == id2 || dataMessages.from == id1) {
       setMessages((prevMessages) => {return [...prevMessages, dataMessages.msg]})
@@ -156,7 +173,7 @@ const Home: NextPage = () => {
       
     }else{
       setInput(value);
-      //socket.emit(`typing`, {msg:`${userName} is typing`, to:`${id2}`, sender:`${id1}`, socket:socket.id})
+      socket.emit(`typing`, {msg:`${userName} is typing`, to:`${id2}`, sender:`${id1}`, socket:socket.id})
     }
   }
 

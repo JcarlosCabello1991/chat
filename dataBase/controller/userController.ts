@@ -55,7 +55,12 @@ export const updateMessages = async(req:Request, res:Response, _next:NextFunctio
       console.log("Emisor", user?.chats);
 
       //Actualizamos la conversación en la base de datos
-      const updateMessagesUser = await userModel.findByIdAndUpdate(sender, {chats:user?.chats},{new:true}).lean().exec();      
+      try {
+        const updateMessagesUser = await userModel.findByIdAndUpdate(sender, {chats:user?.chats},{new:true}).lean().exec(); 
+      } catch (error) {
+        console.log(error)
+      }
+           
     }
 
     //Hacemos lo mismo que antes pero con el usuario receptor
