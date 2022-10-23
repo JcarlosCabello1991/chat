@@ -13,7 +13,7 @@ app.use("",userRouter);
 db().then(async function onsServerInit() {
   console.log('DB connected')
 
-  app.listen(5001, () => {
+  app.listen(process.env.PORT || 5001, () => {
       console.log(`Server running at http://localhost:5001`)
   })
 })

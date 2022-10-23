@@ -7,7 +7,7 @@ import {io} from 'socket.io-client'
 
 var socketId;
 var usuarios = [];
-const socket = io(`http://localhost:4000`);//http://localhost:4000
+const socket = io(`https://chat-backend-turbofieras.herokuapp.com`);//http://localhost:4000
 const Home: NextPage = () => {
 
   const [input, setInput] = useState<string>("");
@@ -196,6 +196,7 @@ const Home: NextPage = () => {
       // console.log(id2);
       console.log(pendingMessages);
       socket.emit(`send-Message`, {msg:`${userName}:${input}`, to:`${id2}`, sender:`${id1}`, socket:socket.id})
+      socket.emit(`typing`, {msg:``, to:`${id2}`, sender:`${id1}`, socket:socket.id})
     }
     console.log(pendingMessages);
     // console.log(socket.id);
