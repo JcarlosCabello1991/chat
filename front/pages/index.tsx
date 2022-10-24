@@ -117,8 +117,8 @@ const Home: NextPage = () => {
     })
 
     socket.on('typing', (data:any) => {     
-      console.log("ME ESCRIBEN"); 
-      setTyping(data);
+      console.log("ME ESCRIBEN", data.split(" is ")[0], "currentRom", currentRoom);
+      setTyping(data);      
     })
   },[id2])
   
@@ -148,7 +148,6 @@ const Home: NextPage = () => {
 
   useEffect(() => {
     console.log(typing);
-    
     setDataTyping(typing);
   }, [typing])
 
@@ -245,7 +244,7 @@ const Home: NextPage = () => {
         <p>Soy: {userName}</p>
         <div style={{display:'flex', gap:'3rem'}}>
         <div style={{width:'40rem', minHeight:'25rem', borderRadius:'15px', padding:'0', border:'1px solid white'}}>
-          <h2 style={{border:"1px solid white", borderRadius:"15px 15px 0 0", margin:'0px', paddingLeft:'1rem'}}>{currentRoom != "" ? currentRoom : "Abre un chat"} {typing}</h2>
+          <h2 style={{border:"1px solid white", borderRadius:"15px 15px 0 0", margin:'0px', paddingLeft:'1rem'}}>{currentRoom != "" ? currentRoom : "Abre un chat"} {typing.split(" is ")[0] === currentRoom && typing}</h2>
         <fieldset id="fieldset" style={{width:'39.9rem',minHeight:'22.5rem',maxHeight:'22.5rem', borderRadius:'15px', padding:'0 0.5rem 0 0.5rem', border:'0', overflowY:'scroll', display:'flex', alignContent: "flex-start", flexDirection:"column", paddingTop:'0.5rem'}}>
         {
           messages?.length >= 1 && messages.map((msg, index) => {            
