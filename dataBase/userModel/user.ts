@@ -8,6 +8,10 @@ const userSchame = new Schema({
       receiver: String,
       current: Boolean,
       name: String,
+      pendingMessages: {
+        type: Number,
+        default: 0
+      },
       messages:[{
         type: String,
         default:[]
