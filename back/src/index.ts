@@ -86,7 +86,7 @@ io.on('connection', function (socket) {
     // socket.to(data.socket).emit(`${data.sender}`, {msg:data.msg, from: data.sender})
     socket.broadcast.to(data.to).emit(`${data.receiver}`, {msg:data.msg, from: data.sender})
     io.emit(`${data.sender}`, {msg:data.msg, from: data.sender})
-
+    
     const updateMessages = async () => {
     const response = await fetch("http://localhost:5001/messages",{
         method:'POST',

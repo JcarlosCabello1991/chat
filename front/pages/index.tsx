@@ -22,6 +22,7 @@ const Home: NextPage = () => {
   const [typing, setTyping] = useState<string>("");
   const [dataTyping, setDataTyping] = useState<string>("");
   const [pendingMessages, setPendingMessages] = useState<{id:string, numberMessages:number}[]>([]);
+  const [connectedUsers, setConnectedUsers] = useState<{idSocket:string, id:string, usuario:string}[]>([])
 
   //Obtenemos los contactos
   useEffect(() => {
@@ -62,6 +63,7 @@ const Home: NextPage = () => {
       
       // Lista de usuarios conectados
       console.log(usuarios);
+      setConnectedUsers(usuarios)
     });
     socket.emit("connected", id1)
     const currentRoom = async () => {
@@ -82,6 +84,20 @@ const Home: NextPage = () => {
       if(window.location.host == "localhost:3001"){
         setCurrentRoom("Juan Carlos")
       }
+      const response1 = await fetch('http://localhost:5001/pendingMessages',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json'
+        },
+        body:JSON.stringify({user:id1, receiver:id2})
+      })
+      const pending = await response1.json();
+      console.log("PENDING MESSAGES",pending)//pending.msg.chats
+      let arrayPendingMessages: {id:string, numberMessages:number}[] = [];
+      id2 != null && pending.msg.chats.map((chat: any) => {
+        chat.pendingMessages != 0 && arrayPendingMessages.push({id:chat.receiver, numberMessages: chat.pendingMessages})
+      })
+      setPendingMessages(arrayPendingMessages);
     }
     currentRoom();
   },[id1])
@@ -97,9 +113,10 @@ const Home: NextPage = () => {
       headers:{
         'Content-Type':'application/json'
       },
-      body: JSON.stringify({sender:window.location.host == "localhost:3000" ? id1 : id2, receiver:window.location.host == "localhost:3000" ?idCurrentRoom:id1})
+      body: JSON.stringify({sender:window.location.host == "localhost:3000" ? id1 : id2, receiver:window.location.host == "localhost:3000" ?id2:id1})
     })
     const dataMessages = await responseOfCurrentRoom.json();
+    console.log("ROGER", dataMessages.msgs)
     setMessages(dataMessages.msgs)
   }
   } 
@@ -139,7 +156,7 @@ const Home: NextPage = () => {
       }else{
         if(dataMessages.from != ''){
         const idUser = dataMessages.from;        
-        setPendingMessages([{id:idUser, numberMessages:1}])
+        setPendingMessages([...pendingMessages,{id:idUser, numberMessages:1}])
         
       }
     }
@@ -163,12 +180,16 @@ const Home: NextPage = () => {
 
   useEffect(scrollToBottom, [messages]);
 
-  const handleInput = (value:string) => {
+  const handleInput = (value:string) => {    
     if(window.location.host == "localhost:3000"){
       console.log("Escribiendo");
       
       setInput(value);
+      if(value == ""){
+        socket.emit(`typing`, {msg:``, to:`${id2}`, sender:`${id1}`, socket:socket.id})
+      }else{
       socket.emit(`typing`, {msg:`${userName} is typing`, to:`${id2}`, sender:`${id1}`, socket:socket.id})
+      }
       
     }else{
       setInput(value);
@@ -178,7 +199,7 @@ const Home: NextPage = () => {
 
   const submitMessage = async() => {
     console.log(window.location.host);
-  
+    if(input != ""){
     if(window.location.host == "localhost:3000"){
       // const id = id1;
       // console.log("sender",id1);
@@ -189,6 +210,16 @@ const Home: NextPage = () => {
       socket.emit(`typing`, {msg:``, to:`${id2}`, sender:`${id1}`, socket:socket.id})
       // console.log(data);
       console.log(pendingMessages);
+      const response = await fetch("http://localhost:5001/messages",{
+        method:'POST',
+        headers:{
+          // "Access-Control-Allow-Origin":'*',
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({sender: id1, receiver: id2, msgs:`${userName}:${input}`, name:currentRoom, users: connectedUsers})
+      })
+    const dataResponse = await response.json()
+    console.log("MSG",dataResponse);
       
     }else{
       // const id = id2;
@@ -196,6 +227,7 @@ const Home: NextPage = () => {
       console.log(pendingMessages);
       socket.emit(`send-Message`, {msg:`${userName}:${input}`, to:`${id2}`, sender:`${id1}`, socket:socket.id})
       socket.emit(`typing`, {msg:``, to:`${id2}`, sender:`${id1}`, socket:socket.id})
+    }
     }
     console.log(pendingMessages);
     // console.log(socket.id);
@@ -206,9 +238,10 @@ const Home: NextPage = () => {
   const handleUser = async(value:any, userId:string) => {
     socket.emit(`typing`, {msg:``, to:`${id2}`, sender:`${id1}`, socket:socket.id})//set to '' message typing
     setInputUser(value);
+    deletePendingMessage(id2)//userId
     setid2(userId)
     setCurrentRoom(value)
-    deletePendingMessage(userId)
+    
       
     setMessages([])
     //recogemos los mensajes cada vez que cambiamos de chat
@@ -220,12 +253,30 @@ const Home: NextPage = () => {
       body:JSON.stringify({sender:id1,receiver:userId})
     })
     const msgs = await response.json();
-    setMessages(msgs.msgs)
+    console.log(msgs.msgs)
+    if(msgs.msgs == undefined){
+      setMessages([""]);
+    }else{
+      setMessages(msgs.msgs)
+    }
   }
 
-  const deletePendingMessage = (userId:string) => {
+  const deletePendingMessage = (userId:string | undefined) => {
     const messagesAllreadyPending = pendingMessages.filter(chat => chat.id != userId);
     setPendingMessages(messagesAllreadyPending);
+    //Should call to the function in dataBase to put to 0 the pendingMessages of the chat
+    const deleteInDataBasePendingMessages = async () => {
+    const response = await fetch('http://localhost:5001/deletePendingMessages',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json'
+      },
+      body:JSON.stringify({user:id1, receiver:id2})
+    })
+    const data = await response.json();
+    console.log("DELETING",data)
+    }
+    deleteInDataBasePendingMessages();
   }
   
   return (
@@ -247,9 +298,13 @@ const Home: NextPage = () => {
           <h2 style={{border:"1px solid white", borderRadius:"15px 15px 0 0", margin:'0px', paddingLeft:'1rem'}}>{currentRoom != "" ? currentRoom : "Abre un chat"} {typing.split(" is ")[0] === currentRoom && typing}</h2>
         <fieldset id="fieldset" style={{width:'39.9rem',minHeight:'22.5rem',maxHeight:'22.5rem', borderRadius:'15px', padding:'0 0.5rem 0 0.5rem', border:'0', overflowY:'scroll', display:'flex', alignContent: "flex-start", flexDirection:"column", paddingTop:'0.5rem'}}>
         {
-          messages?.length >= 1 && messages.map((msg, index) => {            
+          messages?.length >= 1 && messages.map((msg, index) => {         
+              let userMessages:{id:string, numberMessages:number} | undefined = pendingMessages.find(chat => chat.id == id2) 
             return(
               <>
+              {
+              ((messages.length ) - index == userMessages?.numberMessages) && <div><span>{userMessages?.numberMessages} messages no read</span></div>
+              }
               { currentRoom == msg.split(':')[0] ?
               <div style={{display:'flex', justifyContent:'flex-start'}}>
                 <span key={index} style={{maxWidth:'fit-content',textAlign:'left', border:'1px solid white', borderRadius:'5px', paddingTop:'2px', paddingBottom:'2px', paddingLeft:'5px', paddingRight:'5px', marginBottom:'0.5rem', backgroundColor:'green'}}>
@@ -292,8 +347,8 @@ const Home: NextPage = () => {
                   } */}
                 </p>
                 {userMessages != undefined && 
-                  // (userMessages?.numberMessages)
-                  <div style={{width:'0.5rem', height:'0.5rem', borderRadius:'50%', backgroundColor:'red'}}></div>
+                  <span>{userMessages?.numberMessages}</span>
+                  // <div style={{width:'0.5rem', height:'0.5rem', borderRadius:'50%', backgroundColor:'red'}}></div>
                   }
                 <hr></hr>
                 </>
